@@ -1,16 +1,14 @@
 package scalaz.concurrent
 
-import java.util.concurrent.{Callable, ConcurrentLinkedQueue, CountDownLatch, Executors, ExecutorService}
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
+import java.util.concurrent.{Callable, ConcurrentLinkedQueue, CountDownLatch, ExecutorService}
+import java.util.concurrent.atomic.{AtomicInteger, AtomicBoolean, AtomicReference}
 
 import collection.JavaConversions._
 
-import scalaz.{Monad, Nondeterminism}
+import scalaz.Nondeterminism
 import scalaz.Free.Trampoline
-import scalaz.Free
 import scalaz.Trampoline
 import scalaz.syntax.monad._
-import scalaz.std.function._
 
 /** 
  * `Future` is a trampolined computation producing an `A` that may 
@@ -231,20 +229,39 @@ object Future {
       }
     }
 
-    // Optimized implementation has all Futures dump to a shared queue, then
-    // waits for all to finish
+   /** 
+    * Runs given futures non-deterministically for later collection of their results 
+    * Be careful, because the futures are run, this implementation blocks the thread.
+    * If you want rather just to combine them, use [[scalaz.concurrent.Future.gatherUnordered]]
+    */
     override def gatherUnordered[A](fs: Seq[Future[A]]): Future[List[A]] =
-      Async { cb => 
-        val latch = new CountDownLatch(fs.length)
-        val results = new ConcurrentLinkedQueue[A] 
-        fs.foreach(_ runAsync { a => 
-          results.add(a)
-          latch.countDown
-        })
-        latch.await
-        cb(results.toList).run
-      }
+      Async { cb => cb(Future.gatherUnordered(fs).run) }
   }
+
+  /**
+   * Combines all futures to be run in parallel, order non-deterministic.  
+   * On last completed future will collect and return list of completed futures.
+   * Unlike the Future's [[scalaz.Nondeterminism.gatherUnordered]] it won't run the futures, but rather combines them in non-blocking way to be later run 
+   */
+   def gatherUnordered[A](fs: Seq[Future[A]]): Future[List[A]] = fs match {
+     case Seq() => Future.now(List())
+     case Seq(f) => f.map(List(_))
+     case other =>  async { cb =>
+        val results = new ConcurrentLinkedQueue[A]
+        val c = new AtomicInteger(fs.size)
+        
+        fs.foreach {  f =>
+          f.runAsync {  a =>
+            results.add(a)
+            //only last completed f will hit the 0 here.
+            if (c.decrementAndGet() == 0) {
+              cb(results.toList)
+            }
+          }
+        }
+      }
+    }
+   
 
   /** Convert a strict value to a `Future`. */
   def now[A](a: A): Future[A] = Now(a)
