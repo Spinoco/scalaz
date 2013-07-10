@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.{AtomicInteger, AtomicBoolean}
 
 import scalaz.{Catchable, Nondeterminism, Traverse, \/, -\/, \/-}
 import scalaz.syntax.monad._
-import scalaz.syntax.either._
+import scalaz.syntax.id.ToIdOps
 import scalaz.std.list._
 
 import collection.JavaConversions._
