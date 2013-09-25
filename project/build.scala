@@ -319,13 +319,14 @@ object build extends Build {
         "1.12.3"
   }
 
-  lazy val publishSetting = publishTo <<= (version).apply{
-    v =>
-      val nexus = "https://oss.sonatype.org/"
-      if (v.trim.endsWith("SNAPSHOT"))
-        Some("snapshots" at nexus + "content/repositories/snapshots")
-      else
-        Some("releases" at nexus + "service/local/staging/deploy/maven2")
+
+
+  lazy val publishSetting =   publishTo <<= (version).apply { v =>
+    val nexus = "https://maven.spinoco.com/"
+    if (v.trim.endsWith("SNAPSHOT"))
+      Some("Snapshots" at nexus + "nexus/content/repositories/snapshots")
+    else
+      Some("Releases" at nexus + "nexus/content/repositories/releases")
   }
 
   lazy val credentialsSetting = credentials += {
